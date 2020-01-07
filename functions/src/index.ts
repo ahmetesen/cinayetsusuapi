@@ -28,18 +28,42 @@ export const createUserAndSaveToDb = functions.https.onCall(async (data, context
 });
 
 export const getFirstTenUser = functions.https.onCall(async (data, context) => {
+    let users:Array<FirebaseFirestore.DocumentData> = [];
+    let currentDate = new Date(Date.now());
     try{
-        const now = new Date(Date.now());
-        const currentYear = now.getFullYear();
-        const currentMonth = now.getMonth();
-        const currentDate = now.getDate();
+        while(true){
+            let result = await getSpecificDateUsers(currentDate);
+            if(result){
+                users.push(...result);
+                if(users.length == 10)
+                    break;
+                else
+                    currentDate.setDate(currentDate.getDate()-1)
+            }
+            else{
+                break;
+            }
+        }
+        return users.sort((a,b)=>b['score']-a['score']);
+    }
+    catch(err){
+        return undefined;
+    }
+});
+
+let getSpecificDateUsers = async function(date:Date):Promise<Array<FirebaseFirestore.DocumentData>> {
+    let users:Array<FirebaseFirestore.DocumentData> = [];
+    try{
+        const currentYear = date.getFullYear();
+        const currentMonth = date.getMonth();
+        const currentDate = date.getDate();
 
         const today = currentYear.toString()+currentMonth.toString()+currentDate.toString();
 
         const docs = await db.collection('scores').doc(today).collection('scores').orderBy('score').limit(10).get();
-        let users:Array<FirebaseFirestore.DocumentData> = [];
+        
         if(docs.empty)
-            return undefined;
+            return users;
         else{
             docs.forEach((userSnapshot)=>{
                 users.push(userSnapshot.data());
@@ -48,9 +72,9 @@ export const getFirstTenUser = functions.https.onCall(async (data, context) => {
         }
     }
     catch(err){
-        return undefined;
+        return err;
     }
-});
+}
 
 export const updateUser = functions.https.onCall(async (data, context) => {
     try{
@@ -64,7 +88,20 @@ export const updateUser = functions.https.onCall(async (data, context) => {
 });
 
 export const saveUserPoint = functions.https.onCall(async (data, context) => {
-    
+    data.scoreId = Guid.create().toString();
+    let currentDate = new Date(Date.now());
+    data.createDate = currentDate;
+    const currentYear = currentDate.getFullYear();
+    const currentMonth = currentDate.getMonth();
+    const currentDay = currentDate.getDate();
+    const today = currentYear.toString()+currentMonth.toString()+currentDay.toString();
+    try{
+        await db.collection('scores').doc(today).collection('scores').doc(data.scoreId).set(data);
+        return data.scoreId;
+    }
+    catch(err){
+
+    }
 });
 
 export const ping = functions.https.onCall((data,context)=>{
