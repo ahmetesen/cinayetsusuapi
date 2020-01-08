@@ -35,7 +35,7 @@ export const getFirstTenUser = functions.https.onCall(async (data, context) => {
             let result = await getSpecificDateUsers(currentDate);
             if(result){
                 users.push(...result);
-                if(users.length == 10)
+                if(users.length >= 10)
                     break;
                 else
                     currentDate.setDate(currentDate.getDate()-1)
