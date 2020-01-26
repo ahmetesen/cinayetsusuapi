@@ -4,16 +4,13 @@ import * as functions from 'firebase-functions';
 import * as admin from 'firebase-admin';
 import { Guid } from "guid-typescript";
 
-// // Start writing Firebase Functions
-// // https://firebase.google.com/docs/functions/typescript
-//
 const serviceAccount = require("../key.json");
 
 admin.initializeApp({
   credential: admin.credential.cert(serviceAccount),
   databaseURL: "https://cinayetsusu-dca53.firebaseio.com"
 });
-let db = admin.firestore();
+const db = admin.firestore();
 
 export const createUserAndSaveToDb = functions.https.onCall(async (data, context) => {
     data.deviceId = Guid.create().toString();
@@ -28,13 +25,18 @@ export const createUserAndSaveToDb = functions.https.onCall(async (data, context
 });
 
 export const getFirstTenUser = functions.https.onCall(async (data, context) => {
-    let users:Array<FirebaseFirestore.DocumentData> = [];
-    let currentDate = new Date(Date.now());
+    const users:Array<FirebaseFirestore.DocumentData> = [];
+    const currentDate = new Date(Date.now());
+    const limit:number = 10;
+    let pullCount = 10;
     try{
         while(true){
-            let result = await getSpecificDateUsers(currentDate);
+            const result = await getSpecificDateUsers(currentDate,pullCount);
             if(result){
-                users.push(...result);
+                    users.push(...result);
+                    const miss = limit - users.length;
+                    if(miss>0)
+                        pullCount = miss;
                 if(users.length >= 10)
                     break;
                 else
@@ -44,15 +46,16 @@ export const getFirstTenUser = functions.https.onCall(async (data, context) => {
                 break;
             }
         }
-        return users.sort((a,b)=>b['score']-a['score']);
+        const values = users.sort((a,b)=>b['score']-a['score']).slice(0,limit);
+        return values;
     }
     catch(err){
         return undefined;
     }
 });
 
-let getSpecificDateUsers = async function(date:Date):Promise<Array<FirebaseFirestore.DocumentData>> {
-    let users:Array<FirebaseFirestore.DocumentData> = [];
+async function getSpecificDateUsers(date:Date,getOnly:number):Promise<Array<FirebaseFirestore.DocumentData>> {
+    const users:Array<FirebaseFirestore.DocumentData> = [];
     try{
         const currentYear = date.getFullYear();
         const currentMonth = date.getMonth();
@@ -60,8 +63,8 @@ let getSpecificDateUsers = async function(date:Date):Promise<Array<FirebaseFires
 
         const today = currentYear.toString()+currentMonth.toString()+currentDate.toString();
 
-        const docs = await db.collection('scores').doc(today).collection('scores').orderBy('score').limit(10).get();
-        
+        const docs = await db.collection('scores').doc(today).collection('scores').orderBy('score',"desc").limit(getOnly).get();
+        console.log(docs.size + ' ' +docs.docs.length);
         if(docs.empty)
             return users;
         else{
@@ -89,7 +92,7 @@ export const updateUser = functions.https.onCall(async (data, context) => {
 
 export const saveUserPoint = functions.https.onCall(async (data, context) => {
     data.scoreId = Guid.create().toString();
-    let currentDate = new Date(Date.now());
+    const currentDate = new Date(Date.now());
     data.createDate = currentDate;
     const currentYear = currentDate.getFullYear();
     const currentMonth = currentDate.getMonth();
