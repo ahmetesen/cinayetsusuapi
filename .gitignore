@@ -111,3 +111,5 @@ dist
 typings/
 
 node_modules/
+key.json
+key_.json
